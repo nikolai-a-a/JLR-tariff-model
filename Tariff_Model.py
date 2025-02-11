@@ -1,6 +1,21 @@
 import streamlit as st
 import pandas as pd
 
+# Function to determine elasticity type
+def elasticity_label(elasticity):
+    if elasticity > -1:
+        return "Inelastic"
+    elif elasticity == -1:
+        return "Unit Elastic"
+    elif elasticity > -2:
+        return "Elastic"
+    else:
+        return "Highly Elastic"
+
+# Function to style the DataFrame for display
+def style_dataframe(df):
+    return df.style.format(precision=2).hide(axis="index")  # Hides the index
+
 # Base model values
 base_values = {
     "US ASP (£)": 70000,
@@ -11,12 +26,6 @@ base_values = {
     "Operating Profit (£B)": 2.58,
     "Operating Margin (%)": 8.8
 }
-
-# Helper function for formatting numbers (round to 2 decimals, no trailing zeros)
-def format_number(value):
-    if isinstance(value, (int, float)):
-        return f"{value:.2f}".rstrip('0').rstrip('.')  # Two decimals, remove trailing zeros
-    return value
 
 # Function to calculate updated values
 def calculate_scenario(elasticity, pass_through_rate):
@@ -42,9 +51,8 @@ def calculate_scenario(elasticity, pass_through_rate):
     new_operating_margin = (new_operating_profit / global_revenue_new) * 100 if global_revenue_new > 0 else 0
     
     return {
-        "Scenario": f"{pass_through_rate}% Pass-Through",
         "Tariff (%)": tariff_percent,
-        "US ASP (£)": round(new_asp, 2),
+        "US ASP (£)": int(new_asp),
         "Price Change (%)": round(price_change_percent, 2),
         "Demand Change (%)": round(demand_change_percent, 2),
         "US Units Sold": new_us_units_sold,
@@ -59,36 +67,44 @@ def calculate_scenario(elasticity, pass_through_rate):
     }
 
 # Streamlit app
-st.sidebar.header("User Inputs for Scenario 1")
-elasticity_1 = st.sidebar.slider("Select Price-Demand Elasticity (Scenario 1)", -3.0, 0.0, -1.5, step=0.1)
-pass_through_rate_1 = st.sidebar.slider("Select Pass-Through Rate (%) (Scenario 1)", 0, 100, 50, step=5)
+st.sidebar.header("User Inputs for Scenario A")
+elasticity_A = st.sidebar.slider("Select Price-Demand Elasticity", -3.0, 0.0, -1.5, step=0.25, key="elasticity_A")
+pass_through_rate_A = st.sidebar.slider("Tariff Pass-Through to Consumer (%)", 0, 100, 50, step=25, key="pass_through_A")
 
-st.sidebar.header("User Inputs for Scenario 2")
-elasticity_2 = st.sidebar.slider("Select Price-Demand Elasticity (Scenario 2)", -3.0, 0.0, -1.0, step=0.1)
-pass_through_rate_2 = st.sidebar.slider("Select Pass-Through Rate (%) (Scenario 2)", 0, 100, 50, step=5)
+st.sidebar.header("User Inputs for Scenario B")
+elasticity_B = st.sidebar.slider("Select Price-Demand Elasticity", -3.0, 0.0, -1.0, step=0.25, key="elasticity_B")
+pass_through_rate_B = st.sidebar.slider("Tariff Pass-Through to Consumer (%)", 0, 100, 50, step=25, key="pass_through_B")
 
 # Base scenario table
-st.title("Base Scenario Reference Table (No Tariffs)")
+st.markdown("#### FY2024 Base Scenario (No Tariffs)")  # Smaller title
 base_values["US Revenue (£B)"] = (base_values["US ASP (£)"] * base_values["US Units Sold"]) / 1e9
 base_values["Fixed Cost per Unit (£)"] = round((base_values["Total Fixed Costs (£B)"] * 1e9) / base_values["Global Units Sold"], 2)
 base_df = pd.DataFrame([base_values])
-base_df = base_df.applymap(format_number)  # Apply formatting
-st.table(base_df[[ 
-    "US ASP (£)", "US Units Sold", "US Revenue (£B)", "Global Revenue (£B)", 
-    "Global Units Sold", "Fixed Cost per Unit (£)", "Total Fixed Costs (£B)", 
-    "Operating Profit (£B)", "Operating Margin (%)"
-]])
 
-# Updated scenarios for Scenario 1
-st.title(f"Updated Tariff Scenarios (Scenario 1: Elasticity = {elasticity_1})")
-scenario_results_1 = calculate_scenario(elasticity_1, pass_through_rate_1)
-scenario_df_1 = pd.DataFrame([scenario_results_1])
-scenario_df_1 = scenario_df_1.applymap(format_number)  # Apply formatting
-st.table(scenario_df_1)
+# **Remove Zero Index Column**
+base_df.index = [""]  # Hides the default index
 
-# Updated scenarios for Scenario 2
-st.title(f"Updated Tariff Scenarios (Scenario 2: Elasticity = {elasticity_2})")
-scenario_results_2 = calculate_scenario(elasticity_2, pass_through_rate_2)
-scenario_df_2 = pd.DataFrame([scenario_results_2])
-scenario_df_2 = scenario_df_2.applymap(format_number)  # Apply formatting
-st.table(scenario_df_2)
+st.table(
+    style_dataframe(base_df[[
+        "US ASP (£)", "US Units Sold", "US Revenue (£B)", "Global Revenue (£B)", 
+        "Global Units Sold", "Fixed Cost per Unit (£)", "Total Fixed Costs (£B)", 
+        "Operating Profit (£B)", "Operating Margin (%)"
+    ]])
+)
+
+# Calculate scenarios
+scenario_A_results = calculate_scenario(elasticity_A, pass_through_rate_A)
+scenario_B_results = calculate_scenario(elasticity_B, pass_through_rate_B)
+
+# **Remove Zero Index Column from Scenario Tables**
+scenario_A_df = pd.DataFrame([scenario_A_results])
+scenario_B_df = pd.DataFrame([scenario_B_results])
+scenario_A_df.index = [""]
+scenario_B_df.index = [""]
+
+# Updated tariff scenarios with defined elasticity types
+st.markdown(f"#### Scenario A: Tariff Pass-Through to Consumer {pass_through_rate_A}%, Price-Demand Elasticity = {elasticity_A} ({elasticity_label(elasticity_A)})")
+st.table(style_dataframe(scenario_A_df))
+
+st.markdown(f"#### Scenario B: Tariff Pass-Through to Consumer {pass_through_rate_B}%, Price-Demand Elasticity = {elasticity_B} ({elasticity_label(elasticity_B)})")
+st.table(style_dataframe(scenario_B_df))
